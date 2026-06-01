@@ -7,6 +7,7 @@ export default function Notes() {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editingNote, setEditingNote] = useState(null); // note being edited
 
   const fetchNotes = async () => {
     try {
@@ -21,17 +22,35 @@ export default function Notes() {
     fetchNotes();
   }, []);
 
-  const handleCreate = async (e) => {
+  const resetForm = () => {
+    setTitle("");
+    setContent("");
+    setEditingNote(null);
+    setError("");
+  };
+
+  const handleOpenEdit = (note) => {
+    setEditingNote(note);
+    setTitle(note.title);
+    setContent(note.content);
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
-      await api.post("/api/notes/", { title, content });
-      setTitle("");
-      setContent("");
+      if (editingNote) {
+        await api.patch(`/api/notes/${editingNote.id}/`, { title, content });
+      } else {
+        await api.post("/api/notes/", { title, content });
+      }
+      resetForm();
       fetchNotes();
     } catch (err) {
-      setError("Failed to create note");
+      setError(editingNote ? "Failed to update note" : "Failed to create note");
     } finally {
       setLoading(false);
     }
@@ -52,8 +71,8 @@ export default function Notes() {
       <h2>My Notes</h2>
 
       <div className="card">
-        <h3>New Note</h3>
-        <form onSubmit={handleCreate}>
+        <h3>{editingNote ? `✏️ Editing: "${editingNote.title}"` : "New Note"}</h3>
+        <form onSubmit={handleSubmit}>
           <input
             type="text"
             placeholder="Title"
@@ -68,9 +87,18 @@ export default function Notes() {
             required
           />
           {error && <div className="error">{error}</div>}
-          <button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Add Note"}
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button type="submit" disabled={loading}>
+              {loading
+                ? (editingNote ? "Updating..." : "Saving...")
+                : (editingNote ? "Update Note" : "Add Note")}
+            </button>
+            {editingNote && (
+              <button type="button" onClick={resetForm}>
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -83,7 +111,10 @@ export default function Notes() {
           <small style={{ color: "#666" }}>
             {new Date(note.created_at).toLocaleString()}
           </small>
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+            <button onClick={() => handleOpenEdit(note)}>
+              ✏️ Edit
+            </button>
             <button className="danger" onClick={() => handleDelete(note.id)}>
               Delete
             </button>
